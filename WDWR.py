@@ -5,6 +5,8 @@ import csv
 import asyncio
 import datetime
 import os
+import pandas
+import pytz
 
 from typing import Iterable, Literal, TypeVar, Generic
 from enum import StrEnum
@@ -20,6 +22,7 @@ class URL(StrEnum):
     liveData = "https://api.themeparks.wiki/v1/entity/{}/live"
     entityChildrenData = "https://api.themeparks.wiki/v1/entity/{}/children"
     entityData = "https://api.themeparks.wiki/v1/entity/{}"
+    schedule = "https://api.themeparks.wiki/v1/entity/{}/schedule" 
 
 class ActivityTypes(StrEnum):
     Attraction = "ATTRACTION"
@@ -141,7 +144,7 @@ class Show(_BaseEntity):
         self.properties.append("isMeetGreet")
 
     def toDict(self):
-        return super().dict.update({"nextPerformance" : self.nextPerformance, "isMeetGreet" : self.isMeetGreet})
+        return super().dict.update({"isMeetGreet" : self.isMeetGreet})
 
 T = TypeVar("T", bound=_BaseEntity)
 
@@ -195,6 +198,8 @@ class Park:
     shows: ActivityList[Show]
     restaurants: ActivityList[Restaurant]
     waitBetweenTimeChecks: int
+    openTime : datetime.datetime
+    closeTime : datetime.datetime
 
     def _categorizeActivites(self, entityType: ActivityTypes, parkData):
         return [activity for activity in parkData if activity["entityType"] == entityType]
@@ -268,12 +273,21 @@ class Park:
             elif activity["entityType"] == ActivityTypes.Show:
                 self.shows[self.shows.names.index(activity["name"])].currentStatus = activity["status"]
 
+    def _getParkSchedule(self):
+        response = web.get(URL.schedule.format(self.slug)).json()
+        today = [day for day in response["schedule"] if day["date"] == datetime.datetime.now().strftime("%Y-%m-%d") and "description" not in day]
+        today = today[0]
+
+        self.openTime = datetime.datetime.fromisoformat(today["openingTime"])
+        self.closeTime = datetime.datetime.fromisoformat(today["closingTime"])
+
     def _additionalInfoAdd(self):
         response = web.get(URL.liveData.format(self.slug)).json()
         self._checkRideGreet(response)
         self._getWaitTimes(response)
         self._getStatus(response)
-               
+        self._getParkSchedule()
+
     def __init__(self, name:str, slug:str) -> None:
         self.name = name
         self.slug = slug
@@ -291,6 +305,14 @@ class Park:
         self._additionalInfoAdd()
 
         self.lastTimeCheck = datetime.datetime.now()
+
+    def isParkOpen(self):
+        currentTime = datetime.datetime.now(pytz.timezone("America/New_York"))
+        
+        if self.openTime <= currentTime <= currentTime:
+            return True
+        else:
+            return False
 
     def checkWaitTimes(self):
         timeBetween = datetime.datetime.now() - self.lastTimeCheck
@@ -385,4 +407,13 @@ class Park:
                         writer.writerow(row)
 
 class MachineLearning:
-    ...
+    fileName : str
+    dataFrame : pandas.DataFrame
+
+    def __init__(self, filename) -> None:
+        self.features = ["weekday", "hourOfDay", "month"]
+        target= "waitTime" 
+        self.fileName = self.fileName
+
+    def _readCSV(self):
+        ...
