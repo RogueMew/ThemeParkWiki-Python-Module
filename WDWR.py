@@ -111,7 +111,7 @@ class _BaseEntity:
         }
 
 class Attraction(_BaseEntity):
-    distanceFromUser: float | None
+    #distanceFromUser: float | None
     isRide: bool
 
     def __init__(self, name: str, location: LongitudeLatitude, id:str) -> None:
@@ -124,14 +124,16 @@ class Attraction(_BaseEntity):
         return f"Attraction({self.name}, isRide: {self.isRide}, {self.location}. {self.waitTime})"
     
     def toDict(self):
-        return super().dict.update({"isRide" : self.isRide, "distanceFromUser" : self.distanceFromUser})
+        dictionary = super().dict 
+        dictionary.update({"isRide" : self.isRide})
+        return dictionary
         
 class Restaurant(_BaseEntity):
     def __init__(self, name: str, location: LongitudeLatitude, id: str) -> None:
         super().__init__(name, location, id)
 
 class Show(_BaseEntity):
-    nextPerformance: int | None
+    #nextPerformance: int | None
     isMeetGreet: bool
 
     def __init__(self, name: str, location: LongitudeLatitude, id) -> None:
@@ -381,4 +383,6 @@ class Park:
                             "month" : self.lastTimeCheck.month
                         }
                         writer.writerow(row)
-            
+
+class MachineLearning:
+    ...
