@@ -74,7 +74,7 @@ class LongitudeLatitude:
             "latitude" : self.latitude
             }
     
-    def distanceBetween(self, location: LongitudeLatitude):
+    def distanceBetween(self, location: "LongitudeLatitude"):
         return geodesic(self.toTuple, location.toTuple)
     
     def __str__(self) -> str:
