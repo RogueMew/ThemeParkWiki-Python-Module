@@ -98,7 +98,7 @@ class _BaseEntity:
         self.waitTime = None
         self.id = id
         self.currentStatus = None
-        self.properties = ["name", "id", "waitTime", "currentStatus", "weekday", "hourOfDay", "month"]
+        self.properties = ["name", "waitTime", "currentStatus", "weekday", "month","dayNumber", "hourOfDay", "minute"]
 
     def __repr__(self) -> str:
         return f"{type(self)}({self.name}, {self.location}, waitTime:{self.waitTime}, status: {self.currentStatus})"
@@ -126,7 +126,8 @@ class Attraction(_BaseEntity):
     def __repr__    (self) -> str:
         return f"Attraction({self.name}, isRide: {self.isRide}, {self.location}. {self.waitTime})"
     
-    def toDict(self):
+    @property
+    def dict(self):
         dictionary = super().dict 
         dictionary.update({"isRide" : self.isRide})
         return dictionary
@@ -143,8 +144,11 @@ class Show(_BaseEntity):
         super().__init__(name, location, id)
         self.properties.append("isMeetGreet")
 
-    def toDict(self):
-        return super().dict.update({"isMeetGreet" : self.isMeetGreet})
+    @property
+    def dict(self):
+        dictionary = super().dict
+        dictionary.update({"isMeetGreet" : self.isMeetGreet})
+        return dictionary
 
 T = TypeVar("T", bound=_BaseEntity)
 
@@ -188,7 +192,68 @@ class ActivityList(list[T], Generic[T]):
     @property
     def names(self) -> list[str]:
         return [item.name for item in self]
-         
+    
+    def toDict(self):
+        dictionary = {}
+        
+        for attraction in self:
+            attractionDict = {
+                "name" : attraction.name,
+                "waitTime" : attraction.waitTime,
+                "currentStatus" : attraction.currentStatus
+            }
+            
+            if self.activityType is Attraction:
+                attractionDict.update({"isRide" : attraction.isRide}) # type: ignore
+
+            if self.activityType is Show:
+                attractionDict.update({"isMeetGreet" : attraction.isMeetGreet}) # type: ignore
+
+            dictionary.update({f"{attraction.name}" : attractionDict})
+
+        return dictionary
+
+    def archiveToCSV(self, parkName: str, lastTimeCheck=datetime.datetime.now()):
+
+        typeDict = {
+            Attraction : Attraction("",LongitudeLatitude(0,0),""),
+            Show : Show("",LongitudeLatitude(0,0),""),
+            Restaurant : Restaurant("",LongitudeLatitude(0,0),""),
+        }
+
+        typeDictStr = {
+            Attraction : "attractions",
+            Show : "shows",
+            Restaurant : "restaurant"
+        }
+
+        with open(f"{parkName}_{typeDictStr[self.activityType]}.csv", mode="a", newline="") as csvFile:
+            writer = csv.DictWriter(csvFile, typeDict[self.activityType].properties)
+
+            if UtilFuncs().hasHeaders(f"{parkName}_{typeDictStr[self.activityType]}.csv"):
+                writer.writeheader()
+            
+            activities = self.toDict()
+            
+            for activity in activities:
+                row = {
+                            "name" : activities[activity]["name"],
+                            "waitTime" : activities[activity]["waitTime"],
+                            "currentStatus" : activities[activity]["currentStatus"],
+                            "month" : lastTimeCheck.month,
+                            "dayNumber" :  lastTimeCheck.day,
+                            "weekday" : lastTimeCheck.weekday(),
+                            "hourOfDay" : lastTimeCheck.hour,
+                            "minute" : lastTimeCheck.minute
+                            }
+                
+                if self.activityType is Attraction:
+                    row.update({"isRide" : activities[activity]["isRide"]})
+                
+                if self.activityType is Show:
+                    row.update({"isMeetGreet" : activities[activity]["isMeetGreet"]})
+                writer.writerow(row)
+
 class Park:
     name: str
     slug: str
@@ -309,7 +374,7 @@ class Park:
     def isParkOpen(self):
         currentTime = datetime.datetime.now(pytz.timezone("America/New_York"))
         
-        if self.openTime <= currentTime <= currentTime:
+        if self.openTime <= currentTime <= self.closeTime:
             return True
         else:
             return False
@@ -328,83 +393,6 @@ class Park:
             "shows" : [show.dict for show in self.shows],
             "restaurants" : [restaurant.dict for restaurant in self.restaurants] 
         }
-    
-    def toCSV(self):
-
-        activityList = {
-            "Attractions" : self.attractions,
-            "Shows" : self.shows,
-            "Restaurants" : self.restaurants
-        }
-
-        activitiesDict = self.toDict()
-
-        try:
-            self.checkWaitTimes()
-        except RuntimeError:
-            print("Time was checked within the past 5 minutes")
-
-        for activity in activityList:
-            activity = activityList[activity]
-            
-            if activity is self.attractions:
-
-
-                with open(f"{self.name}_attraction.csv", "a", newline="") as f:
-                    writer = csv.DictWriter(f, Attraction("", LongitudeLatitude(1,1), "").properties)
-                    
-                    if UtilFuncs().hasHeaders(f"{self.name}_attraction.csv"):
-                        writer.writeheader()
-                    
-                    for attraction in activitiesDict["attractions"]:
-                        row = {
-                            "name" : attraction["name"],
-                            "id" : attraction["id"],
-                            "waitTime" : attraction["waitTime"],
-                            "currentStatus" : attraction["currentStatus"],
-                            "weekday" : self.lastTimeCheck.weekday(),
-                            "hourOfDay" : self.lastTimeCheck.hour,
-                            "month" : self.lastTimeCheck.month 
-                            }
-                        
-                        writer.writerow(row)
-            
-            elif activity is self.shows:
-                with open(f"{self.name}_show.csv", "a", newline="") as f:
-                    writer = csv.DictWriter(f, Show("", LongitudeLatitude(1,1), "").properties)
-
-                    if UtilFuncs().hasHeaders(f"{self.name}_show.csv"):
-                        writer.writeheader()
-
-                    for show in activitiesDict["shows"]:
-                        row = {
-                            "name" : show["name"],
-                            "id" : show["id"],
-                            "waitTime" : show["waitTime"],
-                            "currentStatus" : show["currentStatus"],
-                            "weekday" : self.lastTimeCheck.weekday(),
-                            "hourOfDay" : self.lastTimeCheck.hour,
-                            "month" : self.lastTimeCheck.month
-                        }
-                        writer.writerow(row)
-            
-            elif activity is self.restaurants:
-                with open(f"{self.name}_restaurant.csv", "a", newline="") as f:
-                    writer = csv.DictWriter(f, Restaurant("", LongitudeLatitude(1,1), "").properties)
-                    if UtilFuncs().hasHeaders(f"{self.name}_restaurant.csv"):
-                        writer.writeheader()
-                    
-                    for restaurant in activitiesDict["restaurants"]:
-                        row = {
-                            "name" : restaurant["name"],
-                            "id" : restaurant["id"],
-                            "waitTime" : restaurant["waitTime"],
-                            "currentStatus" : restaurant["currentStatus"],
-                            "weekday" : self.lastTimeCheck.weekday(),
-                            "hourOfDay" : self.lastTimeCheck.hour,
-                            "month" : self.lastTimeCheck.month
-                        }
-                        writer.writerow(row)
 
 class MachineLearning:
     fileName : str
