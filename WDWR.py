@@ -353,7 +353,7 @@ class Park:
         self._getStatus(response)
         self._getParkSchedule()
 
-    def __init__(self, name:str, slug:str) -> None:
+    def __init__(self, name:str, slug:str, timeZone="America/New_York") -> None:
         self.name = name
         self.slug = slug
 
@@ -369,7 +369,7 @@ class Park:
         asyncio.run(main=self._getParkActivitiesData())
         self._additionalInfoAdd()
 
-        self.lastTimeCheck = datetime.datetime.now()
+        self.lastTimeCheck = datetime.datetime.now(pytz.timezone(timeZone))
 
     def isParkOpen(self):
         currentTime = datetime.datetime.now(pytz.timezone("America/New_York"))
@@ -379,8 +379,8 @@ class Park:
         else:
             return False
 
-    def checkWaitTimes(self):
-        timeBetween = datetime.datetime.now() - self.lastTimeCheck
+    def checkWaitTimes(self, timeZone="US/Eastern"):
+        timeBetween = datetime.datetime.now(pytz.timezone(timeZone)) - self.lastTimeCheck
         if timeBetween.seconds < self.waitBetweenTimeChecks:
             raise RuntimeError(f"Time Was Checked {timeBetween.seconds} seconds ago")
         
