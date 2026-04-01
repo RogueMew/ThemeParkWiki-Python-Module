@@ -379,8 +379,8 @@ class Park:
         else:
             return False
 
-    def checkWaitTimes(self):
-        timeBetween = datetime.datetime.now() - self.lastTimeCheck
+    def checkWaitTimes(self, timeZone="US/Eastern"):
+        timeBetween = datetime.datetime.now(pytz.timezone(timeZone)) - self.lastTimeCheck
         if timeBetween.seconds < self.waitBetweenTimeChecks:
             raise RuntimeError(f"Time Was Checked {timeBetween.seconds} seconds ago")
         
