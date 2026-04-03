@@ -101,7 +101,7 @@ class _BaseEntity:
         self.waitTime = None
         self.id = id
         self.currentStatus = None
-        self.properties = ["name", "waitTime", "currentStatus", "date", "time", "weekday"]
+        self.properties = ["name", "waitTime", "currentStatus", "date", "time"]
 
     def __repr__(self) -> str:
         return f"{type(self)}({self.name}, {self.location}, waitTime:{self.waitTime}, status: {self.currentStatus})"
