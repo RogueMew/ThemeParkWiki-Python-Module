@@ -7,10 +7,13 @@ import datetime
 import os
 import pandas
 import pytz
+import pymongo
 
 from typing import Iterable, Literal, TypeVar, Generic
 from enum import StrEnum
 from geopy.distance import geodesic
+
+from fuzzywuzzy import process
 
 class Status(StrEnum):
     Operating = "OPERATING"
@@ -394,14 +397,58 @@ class Park:
             "restaurants" : [restaurant.dict for restaurant in self.restaurants] 
         }
 
-class MachineLearning:
-    fileName : str
-    dataFrame : pandas.DataFrame
+class MongoDBUtils:
+    connectionString : str
+    databaseName : str
+    collectionName : str
+    cluster : pymongo.MongoClient
 
-    def __init__(self, filename) -> None:
-        self.features = ["weekday", "hourOfDay", "month"]
-        target= "waitTime" 
-        self.fileName = self.fileName
+    def __init__(self, connectionString, clusterName, collection,) -> None:
+        self.connectionString = connectionString
+        self.clusterName = clusterName
+        self.collectionName = collection
 
-    def _readCSV(self):
-        ...
+        self.cluster = pymongo.MongoClient(self.connectionString)
+        self.database = self.cluster[self.clusterName]
+        self.collection = self.database[self.collectionName]
+        pass
+
+    def pushAllAttractions(self, park: Park):
+        
+        def attractionToMongoDB(attraction: Attraction):
+            attractionDict = {
+                "name" : attraction.name,
+                "currentStatus" : attraction.currentStatus,
+                "waitTime" : attraction.waitTime,
+                "isRide" : attraction.isRide,
+                "checkTime" : park.lastTimeCheck,
+                "parkName" : park.name
+            }
+
+            return attractionDict
+        
+        listOfAttractions = list(map(attractionToMongoDB, park.attractions))
+        self.collection.insert_many(listOfAttractions)
+
+    def pushOneAttraction(self, park: Park, attractionName: str, minPercentageAllowed:int = 80):
+        (closestAttractionName, percentage) = process.extractOne(attractionName, park.attractions.names) # type: ignore
+        
+
+        if percentage < minPercentageAllowed:
+            raise KeyError(f"{attractionName} was not found in this Park")
+
+        print(f"Matched {attractionName} to {closestAttractionName} with a similarity of {percentage}")
+
+
+        attraction = park.attractions[park.attractions.names.index(closestAttractionName)]
+
+        attractionDict = {
+                "name" : attraction.name,
+                "currentStatus" : attraction.currentStatus,
+                "waitTime" : attraction.waitTime,
+                "isRide" : attraction.isRide,
+                "checkTime" : park.lastTimeCheck,
+                "parkName" : park.name
+            }
+        
+        self.collection.insert_one(attractionDict)
