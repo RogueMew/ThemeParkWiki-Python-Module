@@ -101,7 +101,7 @@ class _BaseEntity:
         self.waitTime = None
         self.id = id
         self.currentStatus = None
-        self.properties = ["name", "waitTime", "currentStatus", "weekday", "month","dayNumber", "hourOfDay", "minute"]
+        self.properties = ["name", "waitTime", "currentStatus", "date", "time", "weekday"]
 
     def __repr__(self) -> str:
         return f"{type(self)}({self.name}, {self.location}, waitTime:{self.waitTime}, status: {self.currentStatus})"
@@ -243,11 +243,8 @@ class ActivityList(list[T], Generic[T]):
                             "name" : activities[activity]["name"],
                             "waitTime" : activities[activity]["waitTime"],
                             "currentStatus" : activities[activity]["currentStatus"],
-                            "month" : lastTimeCheck.month,
-                            "dayNumber" :  lastTimeCheck.day,
-                            "weekday" : lastTimeCheck.weekday(),
-                            "hourOfDay" : lastTimeCheck.hour,
-                            "minute" : lastTimeCheck.minute
+                            "date" : lastTimeCheck.strftime("%m-%d-%Y"),
+                            "time" : lastTimeCheck.strftime("%H:%M")
                             }
                 
                 if self.activityType is Attraction:
