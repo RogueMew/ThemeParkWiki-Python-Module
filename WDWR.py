@@ -33,10 +33,10 @@ class ActivityTypes(StrEnum):
     Restaurant = "RESTAURANT"
 
 class ParkSlugs(StrEnum):
-    Magic = "magickingdompark"
+    magic = "magickingdompark"
     epcot = "epcot"
     hollywood = "disneyshollywoodstudios"
-    DAK = "disneysanimalkingdomthemepark"
+    dak = "disneysanimalkingdomthemepark"
 
 class UtilFuncs:
     def WifiCheck(self):
@@ -265,6 +265,7 @@ class Park:
     waitBetweenTimeChecks: int
     openTime : datetime.datetime
     closeTime : datetime.datetime
+    timeZone : str
 
     def _categorizeActivites(self, entityType: ActivityTypes, parkData):
         return [activity for activity in parkData if activity["entityType"] == entityType]
@@ -340,7 +341,7 @@ class Park:
 
     def _getParkSchedule(self):
         response = web.get(URL.schedule.format(self.slug)).json()
-        today = [day for day in response["schedule"] if day["date"] == datetime.datetime.now().strftime("%Y-%m-%d") and "description" not in day]
+        today = [day for day in response["schedule"] if day["date"] == datetime.datetime.now(pytz.timezone(self.timeZone)).strftime("%Y-%m-%d") and "description" not in day]
         today = today[0]
 
         self.openTime = datetime.datetime.fromisoformat(today["openingTime"])
@@ -356,7 +357,7 @@ class Park:
     def __init__(self, name:str, slug:str, timeZone="America/New_York") -> None:
         self.name = name
         self.slug = slug
-
+        self.timeZone = timeZone
         self.attractions = ActivityList([], Attraction)
         self.shows = ActivityList([], Show)
         self.restaurants = ActivityList([], Restaurant)
@@ -369,18 +370,18 @@ class Park:
         asyncio.run(main=self._getParkActivitiesData())
         self._additionalInfoAdd()
 
-        self.lastTimeCheck = datetime.datetime.now(pytz.timezone(timeZone))
+        self.lastTimeCheck = datetime.datetime.now(pytz.timezone(self.timeZone))
 
     def isParkOpen(self):
-        currentTime = datetime.datetime.now(pytz.timezone("America/New_York"))
+        currentTime = datetime.datetime.now(pytz.timezone(self.timeZone))
         
         if self.openTime <= currentTime <= self.closeTime:
             return True
         else:
             return False
 
-    def checkWaitTimes(self, timeZone="US/Eastern"):
-        timeBetween = datetime.datetime.now(pytz.timezone(timeZone)) - self.lastTimeCheck
+    def checkWaitTimes(self):
+        timeBetween = datetime.datetime.now(pytz.timezone(self.timeZone)) - self.lastTimeCheck
         if timeBetween.seconds < self.waitBetweenTimeChecks:
             raise RuntimeError(f"Time Was Checked {timeBetween.seconds} seconds ago")
         
