@@ -343,7 +343,6 @@ class Park:
         response = web.get(URL.schedule.format(self.slug)).json()
         today = [day for day in response["schedule"] if day["date"] == datetime.datetime.now(pytz.timezone(self.timeZone)).strftime("%Y-%m-%d") and "description" not in day]
         today = today[0]
-
         self.openTime = datetime.datetime.fromisoformat(today["openingTime"])
         self.closeTime = datetime.datetime.fromisoformat(today["closingTime"])
 
