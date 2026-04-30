@@ -40,7 +40,8 @@ class ParkSlugs(StrEnum):
     dak = "disneysanimalkingdomthemepark"
 
 class UtilFuncs:
-    def WifiCheck(self):
+    @staticmethod
+    def WifiCheck():
         """Does a WIFI connection check and returns if connected to the internet and returns a bool
 
         Returns:
@@ -51,16 +52,18 @@ class UtilFuncs:
             return True
         except (web.ConnectTimeout, web.ConnectionError):
             return False
-        
-    def printJson(self, json):
+    
+    @staticmethod
+    def printJson(json):
         """Quick DUmb debug for Jason because im to lazy to write this out everytime
 
         Args:
             json (Any): The json I need to debug
         """
         print(jason.dumps(json, indent=4))
-        
-    def hasHeaders(self, filePath: str):
+
+    @staticmethod    
+    def hasHeaders(filePath: str):
         """A rudimentary check if the file has a header but not checking if its CSV, will need to update to do that. Will I at some point yes, but not important right now.
 
         Args:
@@ -72,14 +75,13 @@ class UtilFuncs:
         if not os.path.exists(filePath):
             return False
         
-        if not os.path.getsize(filePath) == 0:
-            return False
-        
-        return True
+        with open(filePath, "r") as f:
+            return bool(f.readline().strip())
 
-    def correctHeaders(self,filePath):
+    @staticmethod
+    def correctHeaders(filePath):
         ...
-        
+
 class LongitudeLatitude:
     longitude: float
     latitude: float
@@ -320,7 +322,7 @@ class ActivityList(list[T], Generic[T]):
         with open(filePath, mode="a", newline="") as csvFile:
             writer = csv.DictWriter(csvFile, typeDict[self.activityType].properties)
 
-            if UtilFuncs().hasHeaders(f"{parkName}_{typeDictStr[self.activityType]}.csv"):
+            if UtilFuncs.hasHeaders(f"{parkName}_{typeDictStr[self.activityType]}.csv"):
                 writer.writeheader()
             
             activities = self.toDict()
@@ -450,7 +452,7 @@ class Park:
 
         self.waitBetweenTimeChecks = 300
 
-        if not UtilFuncs().WifiCheck():
+        if not UtilFuncs.WifiCheck():
             raise ConnectionError("Cannot connect to the wifi")
         
         asyncio.run(main=self._getParkActivitiesData())
@@ -472,7 +474,7 @@ class Park:
             raise RuntimeError(f"Time Was Checked {timeBetween.seconds} seconds ago")
         
         response = web.get(URL.liveData.format(self.slug))
-        self._getWaitTimes(response)     
+        self._getWaitTimes(response.json())     
 
     def toDict(self):
          return {
@@ -484,26 +486,48 @@ class Park:
 class dataCleanup:
     filePath: str
     dataFrame: pandas.DataFrame
+    latestVersion: bool
 
-    def __init__(self, filePath) -> None:
+    def __init__(self, filePath:str, latestVersion:bool =True, printChange: bool=True) -> None:
         self.filePath = filePath
+        self.latestVersion = latestVersion
         if not os.path.exists(self.filePath):
             raise FileExistsError(f"The file {os.path.split(self.filePath)[1]} does not exist at the file path")
-        elif UtilFuncs().hasHeaders(self.filePath):
+        elif not UtilFuncs.hasHeaders(self.filePath):
             raise ValueError("This File has no Data in it")
         
         self.dataFrame = pandas.read_csv(self.filePath)
 
-    @property
-    def names(self):
-        temp = list(set(self.dataFrame["name"].to_list()))
-        
-        for item in temp:
-            temp2 = temp
+
+    def _findSimilars(self, listofData: list) :
+        replaceDict = {}
+        i = 0
+        while len(listofData) > 1:
+            query = listofData.pop(0)
+            fuzzyCheck = process.extractOne(query, listofData)
+            if fuzzyCheck == None:
+                continue
             
-            while len(temp2) > 1:
-                query = temp2.pop()
-                fuzzyCheck = process.extractOne(query, temp2)
-                if fuzzyCheck[1] > 90:
-                    print(f"Found a supposed Dupe with Different name {fuzzyCheck[0]} for {query} with a match of {fuzzyCheck[1]}%")
-                    
+            if fuzzyCheck[1] > 90:
+                replaceDict.update({query : fuzzyCheck[0]})
+        return replaceDict
+    
+    def _replaceData(self, replaceDict: dict, originalList: list):
+        for item in replaceDict:
+            if originalList[::-1].index(item) < originalList[::-1].index(replaceDict[item]) and self.latestVersion:
+                self.dataFrame.replace(replaceDict[item], item, inplace=True)
+                print(f"Replacing {replaceDict[item]} with {item}")
+            else:
+                self.dataFrame.replace(item, replaceDict[item], inplace=True)          
+                print(f"Replacing {item} with {replaceDict[item]}")
+        
+    def standardizeNames(self):
+        originalList = self.dataFrame["name"].to_list()
+        nameList = list(set(originalList))
+        self._replaceData(self._findSimilars(nameList.copy()), originalList)
+
+    def export(self, differentFilePath=None):
+        if differentFilePath is None:
+            differentFilePath = self.filePath
+        
+        self.dataFrame.to_csv(differentFilePath, index=False)
